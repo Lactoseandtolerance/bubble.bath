@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,6 +27,8 @@ func testRedis(t *testing.T) *redis.Client {
 
 func TestRateLimitAllowsUnderLimit(t *testing.T) {
 	rdb := testRedis(t)
+	// Clean up stale keys from previous runs
+	rdb.Del(context.Background(), "ratelimit:192.168.1.100")
 	rl := NewRateLimiter(rdb, 5)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +49,8 @@ func TestRateLimitAllowsUnderLimit(t *testing.T) {
 
 func TestRateLimitBlocksOverLimit(t *testing.T) {
 	rdb := testRedis(t)
+	// Clean up stale keys from previous runs
+	rdb.Del(context.Background(), "ratelimit:10.0.0.1")
 	rl := NewRateLimiter(rdb, 3)
 
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
