@@ -11,6 +11,7 @@ import (
 	"github.com/Lactoseandtolerance/bubble-bath/internal/crypto"
 	"github.com/Lactoseandtolerance/bubble-bath/internal/handlers"
 	"github.com/Lactoseandtolerance/bubble-bath/internal/store"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -32,9 +33,16 @@ func main() {
 	userStore := store.NewUserStore(pool)
 	authSvc := auth.NewService(userStore, tokenEnc, colEnc, cfg.AccessTokenTTLMinutes, cfg.RefreshTokenTTLDays)
 
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		log.Fatalf("parsing redis URL: %v", err)
+	}
+	rdb := redis.NewClient(redisOpts)
+	defer rdb.Close()
+
 	authHandler := handlers.NewAuthHandler(authSvc)
 	verifyHandler := handlers.NewVerifyHandler(tokenEnc, userStore)
-	router := handlers.NewRouter(authHandler, verifyHandler)
+	router := handlers.NewRouter(authHandler, verifyHandler, rdb, cfg.MaxLoginAttemptsPerMinute)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("bubble bath listening on %s", addr)
