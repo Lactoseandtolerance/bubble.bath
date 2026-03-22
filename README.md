@@ -1,368 +1,192 @@
-# Brain Fart API
+# Bubble Bath Auth API
 
-An open-source question generation, validation, and grading service powered by open-source LLMs. Generates intellectually challenging questions, verifies their answerability against curated academic sources, and grades free-form responses with confidence scoring.
+An open-source, anonymous identity system based on color and number memory. No emails. No passwords. Just a 2-digit number and a color you remember.
 
 ---
 
 ## Overview
 
-The Brain Fart is not a custom-trained model. It is an **orchestration layer** — a service that wraps existing open-source LLMs with structured prompt engineering, retrieval-augmented generation (RAG), and a multi-stage validation pipeline. The intelligence is in the harness, not the weights.
+Bubble Bath is a lightweight authentication API designed for applications where convenience and anonymity matter more than enterprise-grade security. Users register by choosing a 2-digit number and selecting a color from a full-spectrum picker. They authenticate by reproducing that combination from memory.
 
-The underlying model can be swapped as the open-source ecosystem evolves. What makes this service valuable is the validation pipeline that ensures generated questions are answerable, sources are verified, and player answers are graded with transparent confidence.
-
-Built as a standalone, independently deployable API. Originally developed for the [hard.think](https://hard.think) game but designed to be consumed by any project needing reliable, source-verified question generation and answer evaluation.
+Built as a standalone, independently deployable service. Originally developed as part of the hard.think ecosystem but designed for use in any project requiring low-stakes, anonymous identity — games, creative tools, community platforms, prototyping environments.
 
 ---
 
-## Core Architecture
+## How It Works
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Brain Fart API                        │
-│                                                              │
-│  ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐  │
-│  │   Stage 1   │──▶│   Stage 2    │──▶│     Stage 3      │  │
-│  │ Constrained │   │   Source     │   │  Answer Grading   │  │
-│  │ Generation  │   │ Verification │   │  + Confidence     │  │
-│  └─────────────┘   └──────────────┘   └──────────────────┘  │
-│        │                  │                    │              │
-│        ▼                  ▼                    ▼              │
-│   [Open-source      [Source APIs:        [Open-source        │
-│    LLM via           Wikipedia,          LLM comparison      │
-│    Ollama/API]       Scholarpedia,       task]               │
-│                      SEP, etc.]                              │
-└──────────────────────────────────────────────────────────────┘
-```
+### Registration
+
+1. User enters a 2-digit number (10–99) via blank input field
+2. User selects a color from a full-spectrum color picker (pigment bar + hue/shade square)
+3. The selected hex color is quantized to the nearest bucket center in a predefined color grid
+4. The bucket center hex value and number are combined, salted, and hashed
+5. The hash is stored server-side; the user receives a session token
+6. No raw color value or number is ever stored in plaintext
+
+### Login
+
+1. User types their 2-digit number into a blank input (no multiple choice)
+2. User opens the same full-spectrum color picker and recreates their color from memory
+3. The submitted color is snapped to the nearest bucket center
+4. The bucket center + number are hashed and compared against the stored hash
+5. Match → authenticated and issued a session token
+6. No match → retry (max 3 attempts per 15-minute window, then lockout with cooldown)
 
 ---
 
-## Three-Stage Validation Pipeline
+## The Bucket System (Color Quantization)
 
-### Stage 1 — Constrained Generation
+The RGB color space is divided into discrete buckets. Any color within a bucket's boundaries maps to the same canonical center value. This allows:
 
-The LLM generates a question with enforced structured metadata:
+- **Human tolerance:** Users don't need pixel-perfect recall — "close enough" lands in the same bucket
+- **Hashable identity:** Bucket centers are deterministic and can be hashed with standard algorithms
+- **Tunable security:** Bucket size is configurable — smaller buckets = more combinations but harder recall; larger buckets = easier recall but fewer combinations
 
-```json
-{
-  "question": "What mathematical framework did Emmy Noether develop that fundamentally links symmetry and conservation laws in physics?",
-  "answer": "Noether's theorem",
-  "domain": ["mathematics", "physics"],
-  "difficulty": 7,
-  "source_path": {
-    "source": "wikipedia",
-    "article": "Noether's_theorem",
-    "section": "Statement"
-  }
-}
-```
+**Example configuration:**
 
-**Required fields:** question, answer, domain(s), difficulty rating, source path.
+- Bucket width: ~10 per RGB channel (tolerance ±5)
+- Effective color buckets: ~(256/10)³ ≈ 17,000
+- Combined with 90 number options: ~1,530,000 unique identities
+- With rate limiting (3 attempts / 15 min): brute-force resistant for low-stakes use
 
-**Rejection criteria:** If the model cannot provide a source path, the question is discarded before reaching Stage 2. No source claim → no question served.
+### Optional: Region Selection
 
-### Stage 2 — Source Verification (RAG)
+An additional authentication factor where the user selects a zone or quadrant on the color picker before fine-tuning their color. Adds a spatial memory dimension to the keyspace that is intuitive for humans but increases combinatorial difficulty for attackers.
 
-The claimed source path is verified against the actual source content:
-
-1. Call the approved source API (e.g., Wikipedia MediaWiki API) to retrieve the specified article/section
-2. Run a second LLM call with the prompt: *"Does this passage support this answer to this question?"*
-3. The LLM returns a verification judgment (confirmed / not confirmed / partially confirmed)
-4. **Not confirmed → question is rejected and never served**
-5. **Partially confirmed → flagged for manual review or prompt refinement**
-
-This is the critical reliability layer. The key insight: the model is not being asked to *know* things — it's being asked to *compare* things. A constrained comparison task is significantly more reliable than open-ended knowledge recall.
-
-### Stage 3 — Answer Grading with Confidence Scoring
-
-When a player submits an answer:
-
-1. The LLM compares the player's submission against the known correct answer
-2. Returns a structured grading response:
-
-```json
-{
-  "judgment": "correct",
-  "confidence": 0.92,
-  "explanation": "The player's answer matches the expected answer.",
-  "canonical_answer": "Noether's theorem"
-}
-```
-
-**Confidence thresholds:**
-- **High confidence (≥ 0.85):** Auto-resolved as correct or incorrect
-- **Low confidence (< 0.85):** Flagged as ambiguous. Surfaced to the player as: *"Your answer might be correct — here's what we were looking for"*
-
-**The confidence score serves three purposes:**
-- **Gameplay:** Graceful handling of ambiguous, partial, or alternatively-phrased answers
-- **Scoring:** Confidence level feeds into the Wheel of Knowledge scoring formula
-- **Improvement:** Low-confidence cases are logged for review, enabling iterative prompt refinement and potential future fine-tuning
+**Status:** Designed, not yet implemented. To be explored as an optional enhancement.
 
 ---
 
 ## API Endpoints
 
-### `POST /api/question/generate`
+### `POST /api/auth/register`
 
-Generate a validated question.
+Create a new identity.
 
 **Request body:**
 ```json
 {
-  "domain": "science",
-  "difficulty_range": [5, 8],
-  "exclude_ids": ["q_abc123", "q_def456"]
+  "number": 42,
+  "color": "#1A6B6A"
 }
 ```
-
-**Parameters:**
-- `domain` (optional) — Target knowledge domain. If omitted, domain is chosen randomly
-- `difficulty_range` (optional) — Min/max difficulty (1–10 scale). Default: [3, 7]
-- `exclude_ids` (optional) — Array of previously served question IDs to avoid repeats
 
 **Response:**
 ```json
 {
-  "question_id": "q_ghi789",
-  "question": "What mathematical framework did Emmy Noether develop that fundamentally links symmetry and conservation laws in physics?",
-  "domain": ["mathematics", "physics"],
-  "difficulty": 7,
-  "approved_sources": [
-    {
-      "name": "Wikipedia",
-      "url": "https://en.wikipedia.org/wiki/Noether%27s_theorem"
-    }
-  ],
-  "generated_at": "2025-01-15T22:30:00Z"
+  "success": true,
+  "token": "<session_token>",
+  "identity_id": "<anonymous_id>"
 }
 ```
-
-**Note:** The correct answer and source path are *not* returned to the client. They are stored server-side for grading.
 
 **Error cases:**
-- `503` — LLM unavailable or generation failed after retries
-- `422` — Invalid domain or difficulty range
+- `409` — Combination already registered (bucket collision)
+- `400` — Invalid number (outside 10–99 range) or invalid hex color
 
----
+### `POST /api/auth/login`
 
-### `POST /api/question/grade`
-
-Grade a player's answer.
+Authenticate an existing identity.
 
 **Request body:**
 ```json
 {
-  "question_id": "q_ghi789",
-  "player_answer": "Noether's first theorem",
-  "time_elapsed_seconds": 145
+  "number": 42,
+  "color": "#1B6D6C"
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "token": "<session_token>",
+  "identity_id": "<anonymous_id>"
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "attempts_remaining": 2,
+  "lockout": false
+}
+```
+
+**Error cases:**
+- `401` — No matching identity found
+- `429` — Rate limited / locked out (max attempts exceeded)
+
+### `POST /api/auth/validate`
+
+Validate an existing session token.
+
+**Request body:**
+```json
+{
+  "token": "<session_token>"
 }
 ```
 
 **Response:**
 ```json
 {
-  "question_id": "q_ghi789",
-  "judgment": "correct",
-  "confidence": 0.88,
-  "canonical_answer": "Noether's theorem",
-  "explanation": "The player's answer is substantially correct. Noether's first theorem is the commonly referenced result.",
-  "domain": ["mathematics", "physics"],
-  "difficulty": 7,
-  "source": {
-    "name": "Wikipedia",
-    "url": "https://en.wikipedia.org/wiki/Noether%27s_theorem",
-    "relevant_section": "Statement"
-  }
+  "valid": true,
+  "identity_id": "<anonymous_id>"
 }
 ```
 
-**Response fields:**
-- `judgment` — `correct`, `incorrect`, or `ambiguous`
-- `confidence` — Float 0–1. Below 0.85 triggers `ambiguous` judgment
-- `canonical_answer` — The expected correct answer (revealed after grading)
-- `explanation` — Brief explanation of the grading decision
-- `source` — The verified source, for player reference after answering
+### `POST /api/auth/logout`
 
----
+Invalidate a session token.
 
-### `GET /api/question/:id`
-
-Retrieve metadata for a previously generated question (post-grading only — does not expose the answer before grading).
+**Request body:**
+```json
+{
+  "token": "<session_token>"
+}
+```
 
 **Response:**
 ```json
 {
-  "question_id": "q_ghi789",
-  "question": "What mathematical framework did Emmy Noether develop...",
-  "domain": ["mathematics", "physics"],
-  "difficulty": 7,
-  "generated_at": "2025-01-15T22:30:00Z",
-  "times_served": 12,
-  "average_confidence": 0.81,
-  "correct_rate": 0.42
+  "success": true
 }
 ```
 
 ---
 
-### `GET /api/domains`
+## Security Model
 
-List all available knowledge domains.
+### Strengths
 
-**Response:**
-```json
-{
-  "domains": [
-    {
-      "id": "science",
-      "label": "Natural Sciences",
-      "description": "Physics, chemistry, biology, earth sciences"
-    },
-    {
-      "id": "mathematics",
-      "label": "Mathematics",
-      "description": "Pure and applied mathematics, logic, statistics"
-    },
-    {
-      "id": "philosophy",
-      "label": "Philosophy",
-      "description": "Ethics, epistemology, metaphysics, logic, political philosophy"
-    },
-    {
-      "id": "history",
-      "label": "History",
-      "description": "World history, civilizations, historical events and figures"
-    },
-    {
-      "id": "technology",
-      "label": "Technology & Computing",
-      "description": "Computer science, engineering, information technology"
-    },
-    {
-      "id": "arts",
-      "label": "Arts & Literature",
-      "description": "Visual arts, music, literature, cultural studies"
-    },
-    {
-      "id": "social_sciences",
-      "label": "Social Sciences",
-      "description": "Psychology, sociology, economics, political science"
-    },
-    {
-      "id": "geography",
-      "label": "Geography & Earth",
-      "description": "Physical geography, geopolitics, climate, ecology"
-    }
-  ]
-}
-```
+- **Anonymous:** No PII collected or stored — no emails, no names, no passwords
+- **Credential-stuffing resistant:** Identities are unique to this system; no reusable passwords to leak
+- **Rate-limited:** Configurable attempt limits with lockout and cooldown periods
+- **Hashable:** Bucket quantization enables standard hashing (bcrypt/argon2) — no plaintext storage
 
-**Note:** Domain list is provisional (6–8 categories). Final categorization is an open design question.
+### Limitations
 
----
+- **Lower entropy than traditional passwords:** ~1.5M combinations at default bucket size vs. billions for a strong password. Rate limiting is essential
+- **Shoulder-surfing vulnerability:** Color selection is visually observable. Not appropriate for high-security environments
+- **Color-blind accessibility:** Users with color vision deficiency need an alternative authentication path (see Open Questions)
+- **Single-factor:** Number + color is conceptually one factor (something you know). Not suitable for multi-factor requirements
 
-### `GET /api/sources`
+### Appropriate Use Cases
 
-List all approved sources in the corpus.
+- Games and interactive experiences
+- Creative tools and sandboxes
+- Anonymous community identity
+- Session persistence for low-stakes applications
+- Prototyping and experimental projects
 
-**Response:**
-```json
-{
-  "sources": [
-    {
-      "id": "wikipedia",
-      "name": "Wikipedia",
-      "api": "MediaWiki API",
-      "url": "https://en.wikipedia.org",
-      "status": "active"
-    },
-    {
-      "id": "scholarpedia",
-      "name": "Scholarpedia",
-      "url": "http://www.scholarpedia.org",
-      "status": "active"
-    },
-    {
-      "id": "sep",
-      "name": "Stanford Encyclopedia of Philosophy",
-      "url": "https://plato.stanford.edu",
-      "status": "active"
-    }
-  ]
-}
-```
+### Not Appropriate For
 
----
-
-## Model Layer
-
-### Primary Strategy: Open-Source LLMs
-
-The Brain Fart prioritizes open-source models for cost control, transparency, and community alignment.
-
-**Candidates (to be benchmarked at implementation time):**
-- Llama 3 (Meta) — strong general-purpose instruction following
-- Mistral / Mixtral — competitive performance, efficient inference
-- Other emerging open-source models at time of development
-
-**Serving options:**
-- **Local development:** Ollama (simple local model serving)
-- **Production:** Hosted open-source inference provider (e.g., Together AI, Replicate, Groq) or self-hosted with vLLM/TGI
-
-**Selection criteria:**
-- Strong instruction-following for structured output generation
-- Low hallucination rate on factual content
-- Active community support and ongoing development
-- Cost — architecture should function within free/low-cost inference tiers where possible
-
-### Model Abstraction Layer
-
-The service should abstract the model layer behind a consistent interface so the underlying model can be swapped without changing the validation pipeline, prompts, or API contracts.
-
-```
-┌────────────────────────┐
-│   Model Interface      │
-│   generate(prompt)     │
-│   compare(a, b)        │
-│   verify(passage, q&a) │
-├────────────────────────┤
-│   OllamaProvider       │  ← local dev
-│   TogetherProvider     │  ← production option A
-│   ReplicateProvider    │  ← production option B
-│   AnthropicProvider    │  ← fallback / comparison
-└────────────────────────┘
-```
-
----
-
-## Approved Source Corpus
-
-### Initial Sources
-| Source | API | Use Case |
-|--------|-----|----------|
-| Wikipedia | MediaWiki API | Broad knowledge base across all domains |
-| Scholarpedia | Direct access | Peer-reviewed science and mathematics |
-| Stanford Encyclopedia of Philosophy | Direct access | Philosophy, logic, ethics |
-
-### Planned Expansions
-| Source | Status | Use Case |
-|--------|--------|----------|
-| PubMed abstracts | Future | Medical and life sciences |
-| Khan Academy references | Future | Educational mathematics and science |
-| MIT OpenCourseWare | Future | Advanced STEM topics |
-| Project Gutenberg | Future | Literature and humanities |
-
-### Source Integration Interface
-
-Each source needs an adapter that implements:
-```
-{
-  search(query) → results[]
-  getArticle(id) → full_text
-  getSection(id, section) → section_text
-}
-```
-
-Source adapters should handle API rate limits, caching, and error recovery independently.
+- Financial services or transactions
+- Medical records or health data
+- Regulatory-compliant authentication (HIPAA, SOC2, etc.)
+- Any context where identity compromise has serious consequences
 
 ---
 
@@ -371,88 +195,92 @@ Source adapters should handle API rate limits, caching, and error recovery indep
 ```env
 # .env.example
 
-# Model Configuration
-LLM_PROVIDER=ollama                  # ollama | together | replicate | anthropic
-LLM_MODEL=llama3                     # Model identifier for chosen provider
-LLM_API_KEY=<key_if_needed>          # API key for hosted providers
-LLM_BASE_URL=http://localhost:11434  # For Ollama or self-hosted
-
-# Validation Pipeline
-GENERATION_MAX_RETRIES=3             # Max attempts to generate a valid question
-VERIFICATION_THRESHOLD=0.80          # Minimum verification confidence to pass Stage 2
-GRADING_AMBIGUITY_THRESHOLD=0.85     # Below this confidence → ambiguous judgment
-
-# Source APIs
-WIKIPEDIA_API_URL=https://en.wikipedia.org/w/api.php
-SOURCE_CACHE_TTL_HOURS=24            # Cache source content to reduce API calls
+# Bucket System
+BUCKET_WIDTH=10                    # RGB channel bucket width (default: 10)
+# Effective buckets ≈ (256/BUCKET_WIDTH)³
 
 # Rate Limiting
-MAX_QUESTIONS_PER_HOUR=30            # Per-client question generation limit
+MAX_LOGIN_ATTEMPTS=3               # Attempts before lockout
+LOCKOUT_WINDOW_MINUTES=15          # Lockout cooldown period
 
-# Logging
-LOG_LEVEL=info
-LOG_LOW_CONFIDENCE=true              # Log all low-confidence grading cases for review
+# Hashing
+HASH_ALGORITHM=argon2              # bcrypt or argon2
+SALT_ROUNDS=12                     # For bcrypt; ignored for argon2
+
+# Session
+SESSION_TTL_HOURS=168              # Session token lifetime (default: 7 days)
+SESSION_SECRET=<your_secret_here>  # Secret for signing session tokens
+
+# Region Selection (optional enhancement)
+REGION_SELECTION_ENABLED=false     # Enable spatial zone as additional factor
+REGION_GRID_SIZE=4                 # NxN grid of selectable zones (e.g., 4x4 = 16 zones)
 
 # Server
-PORT=5000
+PORT=4000
 ```
+
+---
+
+## Tech Stack
+
+### Frontend
+
+- **Framework:** Next.js
+- **UI:** Full-spectrum color picker component, number input, auth flow pages
+
+### Auth API (Backend)
+
+Two implementation paths — Go is the target for production-grade auth logic; Node.js is available as a fallback or for rapid prototyping.
+
+**Go (preferred for auth logic):**
+- **Language:** Go — strong standard library for cryptography, concurrency, and HTTP servers; widely used in production auth systems
+- **HTTP:** `net/http` or Chi router
+- **Hashing:** `golang.org/x/crypto/argon2` or `golang.org/x/crypto/bcrypt`
+- **Benefits:** Compiled binary, minimal dependencies, strong type safety for security-critical code
+
+**Node.js (alternative):**
+- **Runtime:** Node.js
+- **Framework:** Express or Fastify
+- **Hashing:** argon2 or bcrypt npm packages
+
+### Shared
+
+- **Database:** TBD — needs to store hashed identities and session tokens. Lightweight is fine (SQLite for dev, Postgres or Netlify DB for production)
+- **Deployment:** Independently deployable; designed to run as a standalone microservice or serverless function. The Go auth service can run alongside the Next.js app or as a separate container
 
 ---
 
 ## Data Model
 
-### Generated Question Record
+### Identity Record
 ```
 {
-  question_id:       string (UUID)
-  question_text:     string
-  canonical_answer:  string
-  domain:            string[]
-  difficulty:        integer (1–10)
-  source_path: {
-    source_id:       string
-    article_id:      string
-    section:         string
-  }
-  verification: {
-    verified:        boolean
-    confidence:      float
-    verified_at:     timestamp
-  }
-  generated_at:      timestamp
-  times_served:      integer
-  grading_stats: {
-    total_graded:    integer
-    correct_count:   integer
-    avg_confidence:  float
-  }
+  identity_id:     string (UUID)
+  credential_hash: string (argon2/bcrypt hash of bucket_center_hex + number + salt)
+  salt:            string
+  created_at:      timestamp
+  last_login:      timestamp
 }
 ```
 
-### Grading Event Record
+### Session Record
 ```
 {
-  event_id:          string (UUID)
-  question_id:       string (foreign key)
-  player_id:         string (from Bubble Bath identity)
-  player_answer:     string
-  judgment:          string (correct | incorrect | ambiguous)
-  confidence:        float
-  time_elapsed_sec:  integer
-  graded_at:         timestamp
+  token:           string (signed JWT or opaque token)
+  identity_id:     string (foreign key)
+  created_at:      timestamp
+  expires_at:      timestamp
+  active:          boolean
 }
 ```
 
-### Low-Confidence Log
+### Rate Limit Record
 ```
 {
-  event_id:          string (foreign key to grading event)
-  question_id:       string
-  player_answer:     string
-  canonical_answer:  string
-  confidence:        float
-  reviewed:          boolean
-  review_outcome:    string (null until reviewed)
+  ip_or_fingerprint: string
+  attempts:          integer
+  window_start:      timestamp
+  locked_until:      timestamp (null if not locked)
 }
 ```
 
@@ -461,122 +289,136 @@ PORT=5000
 ## Project Structure
 
 ```
-brain-fart/
+bubble-bath/
 ├── README.md
-├── package.json
 ├── .env.example
-├── src/
-│   ├── index.js                    # Entry point / server setup
+│
+├── app/                             # Next.js frontend
+│   ├── package.json
+│   ├── next.config.js
+│   ├── pages/
+│   │   ├── index.js                 # Landing / entry point
+│   │   ├── register.js              # Registration flow (number + color picker)
+│   │   └── login.js                 # Login flow
+│   ├── components/
+│   │   ├── ColorPicker.js           # Full-spectrum color picker component
+│   │   ├── NumberInput.js           # 2-digit number input
+│   │   └── AuthForm.js              # Shared auth form layout
+│   └── lib/
+│       └── api.js                   # Client-side API calls to auth service
+│
+├── auth-service/                    # Go auth API (production target)
+│   ├── go.mod
+│   ├── go.sum
+│   ├── main.go                      # Entry point / server setup
 │   ├── config/
-│   │   └── settings.js             # Environment and configuration
-│   ├── routes/
-│   │   ├── question.js             # Question generation and retrieval endpoints
-│   │   ├── grading.js              # Answer grading endpoint
-│   │   ├── domains.js              # Domain listing endpoint
-│   │   └── sources.js              # Source listing endpoint
-│   ├── pipeline/
-│   │   ├── stage1_generation.js    # Constrained question generation
-│   │   ├── stage2_verification.js  # Source verification (RAG)
-│   │   ├── stage3_grading.js       # Answer grading with confidence
-│   │   └── prompts/
-│   │       ├── generation.js       # Generation prompt templates
-│   │       ├── verification.js     # Verification prompt templates
-│   │       └── grading.js          # Grading prompt templates
+│   │   └── config.go                # Environment and configuration
+│   ├── handlers/
+│   │   └── auth.go                  # Auth endpoint handlers
+│   ├── services/
+│   │   ├── bucket.go                # Color quantization logic
+│   │   ├── hashing.go               # Argon2/bcrypt hashing and comparison
+│   │   ├── session.go               # Token generation and validation
+│   │   └── ratelimit.go             # Attempt tracking and lockout
 │   ├── models/
-│   │   ├── question.js             # Question data model
-│   │   └── gradingEvent.js         # Grading event data model
-│   ├── providers/
-│   │   ├── modelInterface.js       # Abstract model interface
-│   │   ├── ollamaProvider.js       # Ollama integration
-│   │   ├── togetherProvider.js     # Together AI integration
-│   │   └── anthropicProvider.js    # Anthropic fallback
-│   ├── sources/
-│   │   ├── sourceInterface.js      # Abstract source adapter
-│   │   ├── wikipedia.js            # Wikipedia MediaWiki adapter
-│   │   ├── scholarpedia.js         # Scholarpedia adapter
-│   │   └── sep.js                  # Stanford Encyclopedia adapter
-│   └── utils/
-│       ├── cache.js                # Source content caching
-│       ├── logging.js              # Event and low-confidence logging
-│       └── validation.js           # Input validation
-├── tests/
-│   ├── pipeline/
-│   │   ├── generation.test.js
-│   │   ├── verification.test.js
-│   │   └── grading.test.js
-│   ├── providers/
-│   │   └── ollama.test.js
-│   └── sources/
-│       └── wikipedia.test.js
+│   │   ├── identity.go              # Identity data model
+│   │   └── session.go               # Session data model
+│   ├── utils/
+│   │   ├── color.go                 # Hex parsing, RGB conversion
+│   │   └── validation.go            # Input validation
+│   └── tests/
+│       ├── bucket_test.go
+│       ├── auth_test.go
+│       └── ratelimit_test.go
+│
+├── auth-service-node/               # Node.js alternative (prototyping / fallback)
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.js
+│   │   ├── routes/auth.js
+│   │   ├── services/
+│   │   │   ├── bucket.js
+│   │   │   ├── hashing.js
+│   │   │   ├── session.js
+│   │   │   └── rateLimit.js
+│   │   ├── models/
+│   │   │   ├── identity.js
+│   │   │   └── session.js
+│   │   └── utils/
+│   │       ├── colorUtils.js
+│   │       └── validation.js
+│   └── tests/
+│       ├── bucket.test.js
+│       ├── auth.test.js
+│       └── rateLimit.test.js
+│
 └── docs/
-    ├── pipeline-architecture.md    # Detailed pipeline documentation
-    ├── prompt-engineering.md       # Prompt design rationale and iterations
-    ├── model-benchmarks.md         # Model comparison results (TBD)
-    └── source-integration.md       # Source adapter documentation
+    ├── bucket-system.md             # Detailed bucket quantization docs
+    ├── security-model.md            # Security analysis and threat model
+    └── accessibility.md             # Color-blind alternatives (TBD)
 ```
-
----
-
-## Prompt Engineering
-
-Prompt design is central to the Brain Fart's reliability. All prompts live in `src/pipeline/prompts/` and follow these principles:
-
-- **Structured output enforcement:** Every prompt specifies exact JSON output format
-- **Constraint-first:** Prompts tell the model what it *cannot* do before what it should do
-- **Source grounding:** Generation prompts require source attribution as a mandatory field
-- **Comparison framing:** Verification and grading prompts frame tasks as comparison (not knowledge recall)
-- **Iterative refinement:** Prompts are versioned. Low-confidence logs drive prompt improvements over time
-
-**Status:** Prompt templates to be developed during implementation. This is expected to be the most iteration-heavy part of the project.
 
 ---
 
 ## Open Questions & Future Exploration
 
-### Model Selection & Benchmarking
-Specific model choice deferred to implementation. Requires benchmarking candidates on:
-- Structured output reliability (does it consistently produce valid JSON?)
-- Factual accuracy on knowledge-domain questions
-- Comparison task accuracy (Stage 2 and Stage 3 reliability)
-- Inference speed and cost at expected query volume
+### Encoding/Decoding Algorithm
 
-**Status:** Awaiting implementation phase. Will document results in `docs/model-benchmarks.md`.
+The exact quantization logic — how raw hex maps to bucket centers, edge-case handling at RGB boundary values, and whether buckets should be uniform or perceptually weighted (e.g., CIE Lab space vs. raw RGB) — needs in-depth exploration. Perceptual uniformity would mean buckets better match how humans see color differences, which could improve recall accuracy.
 
-### Source API Rate Limits & Caching
-Wikipedia and other source APIs have rate limits. The caching strategy (TTL, invalidation, storage) needs specification. High-traffic gameplay could exceed free-tier limits.
+**Status:** Deferred for dedicated deep-dive session.
 
-**Status:** Needs research during implementation.
+### Color-Blind Accessibility
 
-### Cross-Domain Question Handling
-Questions that span multiple domains (e.g., philosophy of mathematics, history of science) need clear attribution rules for how scoring weight is distributed across domains.
+Users with color vision deficiency (affecting ~8% of males, ~0.5% of females) cannot use the standard color picker flow. Alternatives under consideration:
 
-**Status:** Design decision pending. Impacts Wheel of Knowledge scoring in Service 3.
+- Number-only fallback with longer number sequences
+- Pattern or texture-based picker instead of color
+- Shape + color hybrid system
+- High-contrast mode with labeled color regions
 
-### Fine-Tuning on Gameplay Data
-Long-term possibility: use logged question-answer pairs, especially low-confidence cases with manual review outcomes, to create a curated fine-tuning dataset. This could improve grading accuracy over time.
+**Status:** Not yet designed. Required before any public release.
 
-**Status:** Long-term goal. Requires significant logged data volume first.
+### Bucket Size Calibration
 
-### Question Deduplication & Quality Scoring
-As the question bank grows, need strategies for detecting semantically duplicate questions and scoring question quality based on player engagement metrics (skip rate, average confidence, etc.).
+The optimal bucket width is unknown and depends on human color memory precision. Too small and users can't log in reliably. Too large and the keyspace shrinks below acceptable levels.
 
-**Status:** Future feature.
+Requires: UX playtesting with real users across different devices and screen calibrations.
 
-### Difficulty Calibration
-Initial difficulty ratings are LLM-estimated. Over time, actual player performance data should recalibrate difficulty ratings empirically.
+**Status:** Awaiting prototype for testing.
 
-**Status:** Designed conceptually. Implementation after sufficient play data.
+### Collision Handling
+
+What happens when two users independently choose the same number and a color that quantizes to the same bucket? Current design treats this as a 409 Conflict at registration. Alternatives:
+
+- Allow collisions and differentiate by additional factor (region selection)
+- Silently adjust to nearest available bucket and inform user of slight color shift
+- Require re-selection
+
+**Status:** Design decision pending.
+
+### Token Strategy
+
+JWT vs. opaque tokens, token refresh flow, multi-device session management, and token revocation strategy all need specification.
+
+**Status:** Deferred to implementation phase.
+
+### Region Selection Implementation
+
+The optional spatial zone factor is designed conceptually but not specified in detail. Needs: grid size determination, UX for zone selection, integration with the hashing pipeline, and analysis of how much effective entropy it adds.
+
+**Status:** Designed at concept level. Implementation deferred.
 
 ---
 
 ## Contributing
 
 This project is open-source. Contributions are welcome, particularly in:
-- Prompt engineering and validation pipeline improvements
-- Source adapter implementations for new academic sources
-- Model provider integrations
-- Benchmarking and reliability testing
-- Question quality analysis tooling
+
+- Bucket quantization algorithms and perceptual color space research
+- Accessibility alternatives for color-blind users
+- Security analysis and penetration testing
+- UX research on color memory precision
 
 ---
 
