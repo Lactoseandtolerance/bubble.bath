@@ -1,26 +1,44 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+
+	"github.com/Lactoseandtolerance/bubble-bath/internal/auth"
+	"github.com/Lactoseandtolerance/bubble-bath/internal/config"
+	"github.com/Lactoseandtolerance/bubble-bath/internal/crypto"
+	"github.com/Lactoseandtolerance/bubble-bath/internal/handlers"
+	"github.com/Lactoseandtolerance/bubble-bath/internal/store"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("loading config: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	ctx := context.Background()
 
-	log.Printf("bubble bath listening on :%s", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), mux); err != nil {
+	pool, err := store.NewPostgresPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("connecting to postgres: %v", err)
+	}
+	defer pool.Close()
+
+	tokenEnc := crypto.NewTokenEncryptor(cfg.TokenSecretKey)
+	colEnc := crypto.NewColumnEncryptor(cfg.ColumnEncryptionKey)
+	userStore := store.NewUserStore(pool)
+	authSvc := auth.NewService(userStore, tokenEnc, colEnc, cfg.AccessTokenTTLMinutes, cfg.RefreshTokenTTLDays)
+
+	authHandler := handlers.NewAuthHandler(authSvc)
+	verifyHandler := handlers.NewVerifyHandler(tokenEnc, userStore)
+	router := handlers.NewRouter(authHandler, verifyHandler)
+
+	addr := fmt.Sprintf(":%s", cfg.Port)
+	log.Printf("bubble bath listening on %s", addr)
+	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatal(err)
 	}
 }
