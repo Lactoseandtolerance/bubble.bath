@@ -74,6 +74,12 @@ export default function SatValSquare({ hue, saturation, value, onChange }: Props
       className="sat-val-square"
       width={SIZE}
       height={SIZE}
+      role="slider"
+      aria-label="Saturation and Value"
+      aria-valuenow={saturation}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      tabIndex={0}
       onPointerDown={(e) => {
         dragging.current = true
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -81,6 +87,7 @@ export default function SatValSquare({ hue, saturation, value, onChange }: Props
       }}
       onPointerMove={(e) => { if (dragging.current) handlePointer(e) }}
       onPointerUp={() => { dragging.current = false }}
+      onPointerCancel={() => { dragging.current = false }}
     />
   )
 }

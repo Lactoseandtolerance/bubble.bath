@@ -45,7 +45,7 @@ export default function HueBar({ hue, onChange }: Props) {
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
-    onChange(Math.min(360, Math.max(0, Math.round((x / rect.width) * 360))))
+    onChange(Math.min(359, Math.max(0, Math.round((x / rect.width) * 359))))
   }, [onChange])
 
   return (
@@ -54,6 +54,12 @@ export default function HueBar({ hue, onChange }: Props) {
       className="hue-bar"
       width={WIDTH}
       height={HEIGHT}
+      role="slider"
+      aria-label="Hue (0-359)"
+      aria-valuenow={hue}
+      aria-valuemin={0}
+      aria-valuemax={359}
+      tabIndex={0}
       onPointerDown={(e) => {
         dragging.current = true
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -61,6 +67,7 @@ export default function HueBar({ hue, onChange }: Props) {
       }}
       onPointerMove={(e) => { if (dragging.current) handlePointer(e) }}
       onPointerUp={() => { dragging.current = false }}
+      onPointerCancel={() => { dragging.current = false }}
     />
   )
 }
