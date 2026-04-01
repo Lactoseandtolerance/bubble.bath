@@ -1,4 +1,6 @@
 .DS_Store
 .superpowers/
+.claire/
 .claude/
 .env
+web/node_modules/
