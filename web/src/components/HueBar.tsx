@@ -22,14 +22,14 @@ export default function HueBar({ hue, onChange }: Props) {
 
     // Draw hue spectrum
     for (let x = 0; x < WIDTH; x++) {
-      const h = Math.round((x / WIDTH) * 360)
+      const h = Math.round((x / (WIDTH - 1)) * 359)
       const [r, g, b] = hsvToRgb(h, 100, 100)
       ctx.fillStyle = `rgb(${r},${g},${b})`
       ctx.fillRect(x, 0, 1, HEIGHT)
     }
 
     // Selector indicator
-    const sx = (hue / 360) * WIDTH
+    const sx = (hue / 359) * (WIDTH - 1)
     ctx.strokeStyle = '#fff'
     ctx.lineWidth = 2
     ctx.strokeRect(sx - 3, 1, 6, HEIGHT - 2)
