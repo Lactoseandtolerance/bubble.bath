@@ -2,5 +2,10 @@
 .superpowers/
 .claire/
 .claude/
+<<<<<<< HEAD
+.clair/
+.env
+=======
 .env
 web/node_modules/
+>>>>>>> 559ff09c63bc0eb107a7cbb3c14a94bb2333fc0c
