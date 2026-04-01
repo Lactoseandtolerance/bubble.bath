@@ -1,5 +1,6 @@
 /** Convert HSV (H:0–360, S:0–100, V:0–100) to RGB (0–255 each). */
 export function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  h = h % 360
   const s01 = s / 100
   const v01 = v / 100
   const c = v01 * s01

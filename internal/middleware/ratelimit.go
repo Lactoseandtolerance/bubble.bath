@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -24,10 +23,12 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 		key := fmt.Sprintf("ratelimit:%s", ip)
 
-		ctx := context.Background()
+		ctx := r.Context()
 		count, err := rl.rdb.Incr(ctx, key).Result()
 		if err != nil {
-			next.ServeHTTP(w, r)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error":"service temporarily unavailable"}`))
 			return
 		}
 

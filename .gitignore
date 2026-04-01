@@ -1,11 +1,15 @@
 .DS_Store
 .superpowers/
 .claire/
-.claude/
-<<<<<<< HEAD
 .clair/
+.claude/
 .env
-=======
-.env
+.env.*
+*.env
 web/node_modules/
->>>>>>> 559ff09c63bc0eb107a7cbb3c14a94bb2333fc0c
+web/dist/
+node_modules/
+*.test
+coverage.out
+*.coverprofile
+*.log
