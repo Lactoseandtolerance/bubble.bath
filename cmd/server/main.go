@@ -31,7 +31,7 @@ func main() {
 	tokenEnc := crypto.NewTokenEncryptor(cfg.TokenSecretKey)
 	colEnc := crypto.NewColumnEncryptor(cfg.ColumnEncryptionKey)
 	userStore := store.NewUserStore(pool)
-	authSvc := auth.NewService(userStore, tokenEnc, colEnc, cfg.AccessTokenTTLMinutes, cfg.RefreshTokenTTLDays)
+	authSvc := auth.NewService(userStore, tokenEnc, colEnc, cfg.AccessTokenTTLMinutes, cfg.RefreshTokenTTLDays, cfg.BaseTolerance, cfg.ToleranceFloor, cfg.ToleranceCeiling)
 
 	redisOpts, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {

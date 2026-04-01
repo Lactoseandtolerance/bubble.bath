@@ -1,0 +1,50 @@
+.direct-input {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.direct-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.direct-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.direct-range {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.direct-field input {
+  width: 72px;
+  height: 44px;
+  font-size: 18px;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.direct-field input:focus {
+  border-color: var(--accent-cyan);
+}
+
+/* Hide number input spinners */
+.direct-field input::-webkit-inner-spin-button,
+.direct-field input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.direct-field input[type="number"] {
+  -moz-appearance: textfield;
+}

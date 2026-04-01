@@ -1,0 +1,29 @@
+.digit-input {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.digit-box {
+  width: 64px;
+  height: 80px;
+  font-size: 36px;
+  font-weight: 600;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  outline: none;
+  caret-color: var(--accent-cyan);
+  transition: border-color 0.2s;
+}
+
+.digit-box:focus {
+  border-color: var(--accent-cyan);
+}
+
+.digit-box::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.4;
+}

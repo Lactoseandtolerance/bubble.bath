@@ -1,0 +1,7 @@
+.hue-bar {
+  width: 100%;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  touch-action: none;
+}

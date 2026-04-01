@@ -10,7 +10,7 @@ import (
 func TestLoginDirectSuccess(t *testing.T) {
 	pool, tokenEnc, colEnc := testDeps(t)
 	us := store.NewUserStore(pool)
-	svc := NewService(us, tokenEnc, colEnc, 60, 30)
+	svc := NewService(us, tokenEnc, colEnc, 60, 30, 15.0, 5.0, 25.0)
 
 	req := SignupRequest{
 		DigitCode:   55,
@@ -42,7 +42,7 @@ func TestLoginDirectSuccess(t *testing.T) {
 func TestLoginDirectWrongColor(t *testing.T) {
 	pool, tokenEnc, colEnc := testDeps(t)
 	us := store.NewUserStore(pool)
-	svc := NewService(us, tokenEnc, colEnc, 60, 30)
+	svc := NewService(us, tokenEnc, colEnc, 60, 30, 15.0, 5.0, 25.0)
 
 	req := SignupRequest{
 		DigitCode:   56,
@@ -68,7 +68,7 @@ func TestLoginDirectWrongColor(t *testing.T) {
 func TestLoginDirectWrongDigitCode(t *testing.T) {
 	pool, tokenEnc, colEnc := testDeps(t)
 	us := store.NewUserStore(pool)
-	svc := NewService(us, tokenEnc, colEnc, 60, 30)
+	svc := NewService(us, tokenEnc, colEnc, 60, 30, 15.0, 5.0, 25.0)
 
 	req := SignupRequest{
 		DigitCode:   57,
