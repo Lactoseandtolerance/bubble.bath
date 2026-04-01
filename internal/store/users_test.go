@@ -85,7 +85,7 @@ func TestFindByID(t *testing.T) {
 	user := &models.User{
 		ID:          id,
 		DigitCode:   99,
-		Hue:         360,
+		Hue:         359,
 		Saturation:  100,
 		Value:       100,
 		ColorHash:   []byte("fakehash2"),
