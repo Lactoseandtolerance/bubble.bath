@@ -10,6 +10,7 @@ import (
 func NewRouter(authH *AuthHandler, verifyH *VerifyHandler, rdb *redis.Client, maxLoginAttempts int) *chi.Mux {
 	r := chi.NewRouter()
 
+	r.Use(middleware.CORS)
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.SetHeader("Content-Type", "application/json"))
@@ -22,6 +23,7 @@ func NewRouter(authH *AuthHandler, verifyH *VerifyHandler, rdb *redis.Client, ma
 		r.Route("/auth", func(r chi.Router) {
 			r.Use(rl.Middleware)
 			r.Post("/signup", authH.Signup)
+			r.Post("/login", authH.LoginPicker)
 			r.Post("/login/direct", authH.LoginDirect)
 		})
 		r.Get("/verify", verifyH.Verify)

@@ -1,0 +1,8 @@
+.sat-val-square {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 256px;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  touch-action: none;
+}

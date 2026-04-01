@@ -28,11 +28,14 @@ type AuthResponse struct {
 }
 
 type Service struct {
-	users      *store.UserStore
-	tokenEnc   *bbcrypto.TokenEncryptor
-	colEnc     *bbcrypto.ColumnEncryptor
-	accessTTL  time.Duration
-	refreshTTL time.Duration
+	users            *store.UserStore
+	tokenEnc         *bbcrypto.TokenEncryptor
+	colEnc           *bbcrypto.ColumnEncryptor
+	accessTTL        time.Duration
+	refreshTTL       time.Duration
+	baseTolerance    float64
+	toleranceFloor   float64
+	toleranceCeiling float64
 }
 
 func NewService(
@@ -41,13 +44,19 @@ func NewService(
 	colEnc *bbcrypto.ColumnEncryptor,
 	accessTTLMinutes int,
 	refreshTTLDays int,
+	baseTolerance float64,
+	toleranceFloor float64,
+	toleranceCeiling float64,
 ) *Service {
 	return &Service{
-		users:      users,
-		tokenEnc:   tokenEnc,
-		colEnc:     colEnc,
-		accessTTL:  time.Duration(accessTTLMinutes) * time.Minute,
-		refreshTTL: time.Duration(refreshTTLDays) * 24 * time.Hour,
+		users:            users,
+		tokenEnc:         tokenEnc,
+		colEnc:           colEnc,
+		accessTTL:        time.Duration(accessTTLMinutes) * time.Minute,
+		refreshTTL:       time.Duration(refreshTTLDays) * 24 * time.Hour,
+		baseTolerance:    baseTolerance,
+		toleranceFloor:   toleranceFloor,
+		toleranceCeiling: toleranceCeiling,
 	}
 }
 

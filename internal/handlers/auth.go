@@ -56,6 +56,26 @@ func (h *AuthHandler) LoginDirect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *AuthHandler) LoginPicker(w http.ResponseWriter, r *http.Request) {
+	var req auth.LoginPickerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	resp, err := h.svc.LoginPicker(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "login failed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

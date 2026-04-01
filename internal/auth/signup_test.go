@@ -37,7 +37,7 @@ func testDeps(t *testing.T) (*pgxpool.Pool, *bbcrypto.TokenEncryptor, *bbcrypto.
 func TestSignupSuccess(t *testing.T) {
 	pool, tokenEnc, colEnc := testDeps(t)
 	us := store.NewUserStore(pool)
-	svc := NewService(us, tokenEnc, colEnc, 60, 30)
+	svc := NewService(us, tokenEnc, colEnc, 60, 30, 15.0, 5.0, 25.0)
 
 	req := SignupRequest{
 		DigitCode:   42,
@@ -62,7 +62,7 @@ func TestSignupSuccess(t *testing.T) {
 func TestSignupDuplicateRejected(t *testing.T) {
 	pool, tokenEnc, colEnc := testDeps(t)
 	us := store.NewUserStore(pool)
-	svc := NewService(us, tokenEnc, colEnc, 60, 30)
+	svc := NewService(us, tokenEnc, colEnc, 60, 30, 15.0, 5.0, 25.0)
 
 	req := SignupRequest{
 		DigitCode:   77,
