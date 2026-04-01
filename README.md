@@ -402,6 +402,29 @@ When two users choose the same digit code + identical HSV, registration returns 
 
 ---
 
+## Roadmap
+
+### Phase 3 — Profile & Identity
+- **Display tag**: Post-signup step where users create a visual tag string (spaces, unique symbols supported) tied to their identity hash
+- **Login UX improvements**: HSV value confirmation step after color pick, better direct input discoverability
+- **Data visualization**: Visual representation of how credentials are stored
+
+### Phase 4 — Soap ID & Hardening
+- **Soap ID algorithm**: Deterministic reversible encoding of (digit code + HSV color) into a longer generated-password-style string usable as an alternate login method — algorithmically derived, not just stored
+- Progressive delay + lockout on failed attempts
+- Audit logging, token rotation on refresh
+
+### Phase 5 — Recovery & Mobile
+- **iOS recovery app**: Native iOS app for account recovery (primary recovery mechanism)
+- TOTP-style rotating recovery codes
+
+### Phase 6 — Visual Identity & Cloud
+- Three.js token visualizations (3D models seeded by token data)
+- Google Cloud deployment (Cloud Run + Cloud SQL + Memorystore)
+- Cloud KMS for encryption key management
+
+---
+
 ## Contributing
 
 This project is open-source. Contributions are welcome, particularly in:
