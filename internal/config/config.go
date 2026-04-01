@@ -18,6 +18,9 @@ type Config struct {
 	MaxLoginAttemptsPerMinute int
 	AccessTokenTTLMinutes     int
 	RefreshTokenTTLDays       int
+	BaseTolerance             float64
+	ToleranceFloor            float64
+	ToleranceCeiling          float64
 }
 
 func Load() (*Config, error) {
@@ -78,6 +81,10 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.BaseTolerance = getEnvFloat("BASE_TOLERANCE", 15.0)
+	cfg.ToleranceFloor = getEnvFloat("TOLERANCE_FLOOR", 5.0)
+	cfg.ToleranceCeiling = getEnvFloat("TOLERANCE_CEILING", 25.0)
+
 	return cfg, nil
 }
 
@@ -95,6 +102,18 @@ func getEnvDefault(key, fallback string) string {
 		return fallback
 	}
 	return val
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	val := os.Getenv(key)
+	if val == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
 }
 
 func getEnvInt(key string, fallback int) (int, error) {
