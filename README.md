@@ -6,9 +6,35 @@ An open-source, anonymous identity system based on color and number memory. No e
 
 ## Overview
 
-Bubble Bath is a lightweight authentication API designed for applications where convenience and anonymity matter more than enterprise-grade security. Users register by choosing a 2-digit number and selecting a color from a full-spectrum picker. They authenticate by reproducing that combination from memory.
+Bubble Bath is a lightweight authentication API designed for applications where convenience and anonymity matter more than enterprise-grade security. Users register by choosing a 2-digit number and selecting a color (as HSV values) from a full-spectrum picker. They authenticate by reproducing that combination from memory.
 
-Built as a standalone, independently deployable service. Originally developed as part of the hard.think ecosystem but designed for use in any project requiring low-stakes, anonymous identity — games, creative tools, community platforms, prototyping environments.
+Built as a standalone Go microservice. Originally developed as part of the hard.think ecosystem but designed for use in any project requiring low-stakes, anonymous identity — games, creative tools, community platforms, prototyping environments.
+
+---
+
+## Current Status: Phase 1 MVP (Complete)
+
+The core auth server is functional with exact-match login. Users can sign up, log in, and external services can verify tokens.
+
+### What's Working
+
+- Signup with 2-digit number + HSV color
+- Exact-match login (digit code + H/S/V verified via Argon2 hash)
+- AES-256-GCM encrypted tokens with `bb_` prefix
+- Column-level encryption for HSV values at rest (no plaintext colors in the database)
+- Token verification endpoint for consuming services
+- Redis-based rate limiting on auth routes
+- PostgreSQL storage with encrypted columns
+
+### What's Not Yet Implemented
+
+- HSV tolerance-based login (fuzzy color matching — "close enough" recall)
+- Token refresh endpoint
+- Logout / token revocation
+- Recovery codes
+- Profile update endpoints
+- Progressive lockout (per-identity escalating delays)
+- Next.js frontend
 
 ---
 
@@ -16,162 +42,154 @@ Built as a standalone, independently deployable service. Originally developed as
 
 ### Registration
 
-1. User enters a 2-digit number (10–99) via blank input field
-2. User selects a color from a full-spectrum color picker (pigment bar + hue/shade square)
-3. The selected hex color is quantized to the nearest bucket center in a predefined color grid
-4. The bucket center hex value and number are combined, salted, and hashed
-5. The hash is stored server-side; the user receives a session token
-6. No raw color value or number is ever stored in plaintext
+1. User submits a 2-digit number (0-99) and a color as HSV integers (hue 0-360, saturation 0-100, value 0-100)
+2. The digit code + HSV values are combined, salted, and hashed with Argon2-ID
+3. Each HSV integer is individually encrypted with AES-256-GCM for at-rest storage
+4. The hash and encrypted values are stored server-side; the user receives an access token and refresh token
+5. No raw color value is ever stored in plaintext
 
-### Login
+### Login (Exact Match — Current)
 
-1. User types their 2-digit number into a blank input (no multiple choice)
-2. User opens the same full-spectrum color picker and recreates their color from memory
-3. The submitted color is snapped to the nearest bucket center
-4. The bucket center + number are hashed and compared against the stored hash
-5. Match → authenticated and issued a session token
-6. No match → retry (max 3 attempts per 15-minute window, then lockout with cooldown)
+1. User submits their digit code and HSV color
+2. Server finds all users with that digit code (indexed lookup)
+3. The submitted digit code + HSV are verified against each candidate's Argon2 hash
+4. Match → authenticated, issued `bb_`-prefixed access + refresh tokens
+5. No match → 401 Unauthorized
+6. Rate limited per IP (default: 5 attempts per minute, then 429)
 
----
+### Login (Tolerance-Based — Planned)
 
-## The Bucket System (Color Quantization)
-
-The RGB color space is divided into discrete buckets. Any color within a bucket's boundaries maps to the same canonical center value. This allows:
-
-- **Human tolerance:** Users don't need pixel-perfect recall — "close enough" lands in the same bucket
-- **Hashable identity:** Bucket centers are deterministic and can be hashed with standard algorithms
-- **Tunable security:** Bucket size is configurable — smaller buckets = more combinations but harder recall; larger buckets = easier recall but fewer combinations
-
-**Example configuration:**
-
-- Bucket width: ~10 per RGB channel (tolerance ±5)
-- Effective color buckets: ~(256/10)³ ≈ 17,000
-- Combined with 90 number options: ~1,530,000 unique identities
-- With rate limiting (3 attempts / 15 min): brute-force resistant for low-stakes use
-
-### Optional: Region Selection
-
-An additional authentication factor where the user selects a zone or quadrant on the color picker before fine-tuning their color. Adds a spatial memory dimension to the keyspace that is intuitive for humans but increases combinatorial difficulty for attackers.
-
-**Status:** Designed, not yet implemented. To be explored as an optional enhancement.
+A future login mode where users don't need pixel-perfect color recall. The submitted HSV will be compared against stored values using distance calculations with circular hue handling. "Close enough" will authenticate.
 
 ---
 
 ## API Endpoints
 
-### `POST /api/auth/register`
+### `POST /api/auth/signup`
 
 Create a new identity.
 
-**Request body:**
+**Request:**
 ```json
 {
-  "number": 42,
-  "color": "#1A6B6A"
+  "digit_code": 42,
+  "hue": 180,
+  "saturation": 75,
+  "value": 50,
+  "display_name": "optional-name"
 }
 ```
 
-**Response:**
+**Response (201):**
 ```json
 {
-  "success": true,
-  "token": "<session_token>",
-  "identity_id": "<anonymous_id>"
+  "access_token": "bb_<encrypted_payload>",
+  "refresh_token": "bb_<encrypted_payload>"
 }
 ```
 
-**Error cases:**
-- `409` — Combination already registered (bucket collision)
-- `400` — Invalid number (outside 10–99 range) or invalid hex color
+**Errors:**
+- `400` — Invalid input (digit_code outside 0-99, hue outside 0-360, saturation/value outside 0-100)
+- `409` — Duplicate credentials (same digit code + exact HSV already registered)
 
-### `POST /api/auth/login`
+### `POST /api/auth/login/direct`
 
-Authenticate an existing identity.
+Authenticate with exact-match credentials.
 
-**Request body:**
+**Request:**
 ```json
 {
-  "number": 42,
-  "color": "#1B6D6C"
+  "digit_code": 42,
+  "hue": 180,
+  "saturation": 75,
+  "value": 50
 }
 ```
 
-**Response (success):**
+**Response (200):**
 ```json
 {
-  "success": true,
-  "token": "<session_token>",
-  "identity_id": "<anonymous_id>"
+  "access_token": "bb_<encrypted_payload>",
+  "refresh_token": "bb_<encrypted_payload>"
 }
 ```
 
-**Response (failure):**
-```json
-{
-  "success": false,
-  "attempts_remaining": 2,
-  "lockout": false
-}
-```
-
-**Error cases:**
+**Errors:**
+- `400` — Invalid input
 - `401` — No matching identity found
-- `429` — Rate limited / locked out (max attempts exceeded)
+- `429` — Rate limited (too many attempts)
 
-### `POST /api/auth/validate`
+### `GET /api/verify`
 
-Validate an existing session token.
+Verify a token and retrieve the associated user profile. Designed for external services to validate Bubble Bath tokens.
 
-**Request body:**
+**Headers:**
+```
+Authorization: Bearer bb_<access_token>
+```
+
+**Response (200):**
 ```json
 {
-  "token": "<session_token>"
+  "user_id": "bb_<base64url_encoded_uuid>",
+  "display_name": "",
+  "avatar_shape": "",
+  "created_at": "2026-03-22T12:00:00Z"
 }
 ```
 
-**Response:**
+**Errors:**
+- `401` — Missing or malformed Authorization header
+- `403` — Invalid, tampered, or expired token; or user not found
+
+### `GET /health`
+
+Health check.
+
+**Response (200):**
 ```json
-{
-  "valid": true,
-  "identity_id": "<anonymous_id>"
-}
+{"status": "ok"}
 ```
 
-### `POST /api/auth/logout`
+### Planned Endpoints (Not Yet Implemented)
 
-Invalidate a session token.
-
-**Request body:**
-```json
-{
-  "token": "<session_token>"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true
-}
-```
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/auth/login` | Tolerance-based login (fuzzy color matching) |
+| `POST` | `/api/auth/refresh` | Exchange refresh token for new access token |
+| `POST` | `/api/auth/logout` | Revoke tokens |
+| `POST` | `/api/auth/recover` | Recovery code validation |
+| `GET` | `/api/user/profile` | Get own profile |
+| `PATCH` | `/api/user/profile` | Update display_name, avatar_shape |
 
 ---
 
 ## Security Model
 
+### Cryptography
+
+| Layer | Algorithm | Purpose |
+|-------|-----------|---------|
+| Credential hashing | Argon2-ID (1 iter, 64MB, 4 threads, 32-byte key) | Verify login attempts without storing plaintext |
+| Token encryption | AES-256-GCM with random nonce | Tamper-proof, encrypted access/refresh tokens |
+| Column encryption | AES-256-GCM per integer | Encrypt HSV values at rest in PostgreSQL |
+| Rate limiting | Redis per-IP counter | Throttle brute-force attempts |
+
 ### Strengths
 
 - **Anonymous:** No PII collected or stored — no emails, no names, no passwords
 - **Credential-stuffing resistant:** Identities are unique to this system; no reusable passwords to leak
-- **Rate-limited:** Configurable attempt limits with lockout and cooldown periods
-- **Hashable:** Bucket quantization enables standard hashing (bcrypt/argon2) — no plaintext storage
+- **Rate-limited:** Configurable per-IP attempt limits with automatic cooldown
+- **Defense in depth:** Credentials are hashed (Argon2), raw values are column-encrypted (AES-256-GCM), tokens are encrypted (AES-256-GCM)
+- **No plaintext anywhere:** Neither the color nor the number is stored in a recoverable form without encryption keys
 
 ### Limitations
 
-- **Lower entropy than traditional passwords:** ~1.5M combinations at default bucket size vs. billions for a strong password. Rate limiting is essential
+- **Lower entropy than traditional passwords:** Keyspace is bounded by HSV range (360 * 100 * 100 = 3.6M color combinations * 100 digit codes). Rate limiting is essential
 - **Shoulder-surfing vulnerability:** Color selection is visually observable. Not appropriate for high-security environments
-- **Color-blind accessibility:** Users with color vision deficiency need an alternative authentication path (see Open Questions)
-- **Single-factor:** Number + color is conceptually one factor (something you know). Not suitable for multi-factor requirements
+- **Color-blind accessibility:** Users with color vision deficiency need an alternative authentication path (not yet designed)
+- **Single-factor:** Number + color is conceptually one factor (something you know)
+- **Exact-match only (current):** Users must recall their exact HSV values — no fuzzy matching yet
 
 ### Appropriate Use Cases
 
@@ -190,99 +208,20 @@ Invalidate a session token.
 
 ---
 
-## Configuration
-
-```env
-# .env.example
-
-# Bucket System
-BUCKET_WIDTH=10                    # RGB channel bucket width (default: 10)
-# Effective buckets ≈ (256/BUCKET_WIDTH)³
-
-# Rate Limiting
-MAX_LOGIN_ATTEMPTS=3               # Attempts before lockout
-LOCKOUT_WINDOW_MINUTES=15          # Lockout cooldown period
-
-# Hashing
-HASH_ALGORITHM=argon2              # bcrypt or argon2
-SALT_ROUNDS=12                     # For bcrypt; ignored for argon2
-
-# Session
-SESSION_TTL_HOURS=168              # Session token lifetime (default: 7 days)
-SESSION_SECRET=<your_secret_here>  # Secret for signing session tokens
-
-# Region Selection (optional enhancement)
-REGION_SELECTION_ENABLED=false     # Enable spatial zone as additional factor
-REGION_GRID_SIZE=4                 # NxN grid of selectable zones (e.g., 4x4 = 16 zones)
-
-# Server
-PORT=4000
-```
-
----
-
 ## Tech Stack
 
-### Frontend
-
-- **Framework:** Next.js
-- **UI:** Full-spectrum color picker component, number input, auth flow pages
-
-### Auth API (Backend)
-
-Two implementation paths — Go is the target for production-grade auth logic; Node.js is available as a fallback or for rapid prototyping.
-
-**Go (preferred for auth logic):**
-- **Language:** Go — strong standard library for cryptography, concurrency, and HTTP servers; widely used in production auth systems
-- **HTTP:** `net/http` or Chi router
-- **Hashing:** `golang.org/x/crypto/argon2` or `golang.org/x/crypto/bcrypt`
-- **Benefits:** Compiled binary, minimal dependencies, strong type safety for security-critical code
-
-**Node.js (alternative):**
-- **Runtime:** Node.js
-- **Framework:** Express or Fastify
-- **Hashing:** argon2 or bcrypt npm packages
-
-### Shared
-
-- **Database:** TBD — needs to store hashed identities and session tokens. Lightweight is fine (SQLite for dev, Postgres or Netlify DB for production)
-- **Deployment:** Independently deployable; designed to run as a standalone microservice or serverless function. The Go auth service can run alongside the Next.js app or as a separate container
-
----
-
-## Data Model
-
-### Identity Record
-```
-{
-  identity_id:     string (UUID)
-  credential_hash: string (argon2/bcrypt hash of bucket_center_hex + number + salt)
-  salt:            string
-  created_at:      timestamp
-  last_login:      timestamp
-}
-```
-
-### Session Record
-```
-{
-  token:           string (signed JWT or opaque token)
-  identity_id:     string (foreign key)
-  created_at:      timestamp
-  expires_at:      timestamp
-  active:          boolean
-}
-```
-
-### Rate Limit Record
-```
-{
-  ip_or_fingerprint: string
-  attempts:          integer
-  window_start:      timestamp
-  locked_until:      timestamp (null if not locked)
-}
-```
+| Component | Technology |
+|-----------|------------|
+| Language | Go 1.22+ |
+| HTTP Router | chi/v5 |
+| Database | PostgreSQL 16 (pgx v5 driver) |
+| Cache / Rate Limiting | Redis 7 (go-redis v9) |
+| Hashing | Argon2-ID (golang.org/x/crypto) |
+| Encryption | AES-256-GCM (Go standard library) |
+| Config | godotenv |
+| UUIDs | google/uuid |
+| Local Dev | Docker Compose (Postgres + Redis) |
+| Frontend (planned) | Next.js |
 
 ---
 
@@ -290,124 +229,176 @@ Two implementation paths — Go is the target for production-grade auth logic; N
 
 ```
 bubble-bath/
-├── README.md
-├── .env.example
-│
-├── app/                             # Next.js frontend
-│   ├── package.json
-│   ├── next.config.js
-│   ├── pages/
-│   │   ├── index.js                 # Landing / entry point
-│   │   ├── register.js              # Registration flow (number + color picker)
-│   │   └── login.js                 # Login flow
-│   ├── components/
-│   │   ├── ColorPicker.js           # Full-spectrum color picker component
-│   │   ├── NumberInput.js           # 2-digit number input
-│   │   └── AuthForm.js              # Shared auth form layout
-│   └── lib/
-│       └── api.js                   # Client-side API calls to auth service
-│
-├── auth-service/                    # Go auth API (production target)
-│   ├── go.mod
-│   ├── go.sum
-│   ├── main.go                      # Entry point / server setup
+├── cmd/server/
+│   └── main.go                         # Entry point: load config, connect DB/Redis, wire handlers, start server
+├── internal/
 │   ├── config/
-│   │   └── config.go                # Environment and configuration
-│   ├── handlers/
-│   │   └── auth.go                  # Auth endpoint handlers
-│   ├── services/
-│   │   ├── bucket.go                # Color quantization logic
-│   │   ├── hashing.go               # Argon2/bcrypt hashing and comparison
-│   │   ├── session.go               # Token generation and validation
-│   │   └── ratelimit.go             # Attempt tracking and lockout
+│   │   ├── config.go                   # Env var loading and validation
+│   │   └── config_test.go
 │   ├── models/
-│   │   ├── identity.go              # Identity data model
-│   │   └── session.go               # Session data model
-│   ├── utils/
-│   │   ├── color.go                 # Hex parsing, RGB conversion
-│   │   └── validation.go            # Input validation
-│   └── tests/
-│       ├── bucket_test.go
-│       ├── auth_test.go
+│   │   ├── user.go                     # User struct (ID, digit_code, HSV, color_hash, profile fields)
+│   │   └── token.go                    # TokenPayload and TokenPair structs
+│   ├── crypto/
+│   │   ├── hash.go                     # Argon2-ID hashing (digit_code + HSV → salted hash)
+│   │   ├── hash_test.go
+│   │   ├── token.go                    # AES-256-GCM token encrypt/decrypt with bb_ prefix
+│   │   ├── token_test.go
+│   │   ├── column.go                   # AES-256-GCM column encryption for HSV integers
+│   │   └── column_test.go
+│   ├── store/
+│   │   ├── postgres.go                 # pgx connection pool setup
+│   │   ├── users.go                    # Insert, FindByDigitCode, FindByID, Delete
+│   │   └── users_test.go
+│   ├── auth/
+│   │   ├── signup.go                   # Signup logic: validate → check duplicates → hash → encrypt → store → issue tokens
+│   │   ├── signup_test.go
+│   │   ├── login.go                    # Exact-match login via Argon2 verification
+│   │   └── login_test.go
+│   ├── handlers/
+│   │   ├── router.go                   # Chi router setup with middleware
+│   │   ├── auth.go                     # POST /api/auth/signup, POST /api/auth/login/direct
+│   │   ├── verify.go                   # GET /api/verify (Bearer token validation)
+│   │   └── health.go                   # GET /health
+│   └── middleware/
+│       ├── ratelimit.go                # Redis-based per-IP rate limiting
 │       └── ratelimit_test.go
-│
-├── auth-service-node/               # Node.js alternative (prototyping / fallback)
-│   ├── package.json
-│   ├── src/
-│   │   ├── index.js
-│   │   ├── routes/auth.js
-│   │   ├── services/
-│   │   │   ├── bucket.js
-│   │   │   ├── hashing.js
-│   │   │   ├── session.js
-│   │   │   └── rateLimit.js
-│   │   ├── models/
-│   │   │   ├── identity.js
-│   │   │   └── session.js
-│   │   └── utils/
-│   │       ├── colorUtils.js
-│   │       └── validation.js
-│   └── tests/
-│       ├── bucket.test.js
-│       ├── auth.test.js
-│       └── rateLimit.test.js
-│
-└── docs/
-    ├── bucket-system.md             # Detailed bucket quantization docs
-    ├── security-model.md            # Security analysis and threat model
-    └── accessibility.md             # Color-blind alternatives (TBD)
+├── migrations/
+│   ├── 001_create_users.up.sql         # Users table with encrypted HSV columns
+│   └── 001_create_users.down.sql       # Drop users table
+├── docker-compose.yml                   # PostgreSQL 16 + Redis 7 for local dev
+├── .env.example                         # Template environment variables
+├── go.mod
+└── go.sum
 ```
 
 ---
 
-## Open Questions & Future Exploration
+## Database Schema
 
-### Encoding/Decoding Algorithm
+```sql
+CREATE TABLE users (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    digit_code      SMALLINT NOT NULL CHECK (digit_code >= 0 AND digit_code <= 99),
+    hue_encrypted   BYTEA NOT NULL,       -- AES-256-GCM encrypted hue (0-360)
+    sat_encrypted   BYTEA NOT NULL,       -- AES-256-GCM encrypted saturation (0-100)
+    val_encrypted   BYTEA NOT NULL,       -- AES-256-GCM encrypted value (0-100)
+    color_hash      BYTEA NOT NULL,       -- Argon2 salted hash of digit_code + H + S + V
+    display_name    TEXT NOT NULL DEFAULT '',
+    avatar_shape    TEXT NOT NULL DEFAULT '',
+    recovery_secret BYTEA,                -- Reserved for future recovery codes
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-The exact quantization logic — how raw hex maps to bucket centers, edge-case handling at RGB boundary values, and whether buckets should be uniform or perceptually weighted (e.g., CIE Lab space vs. raw RGB) — needs in-depth exploration. Perceptual uniformity would mean buckets better match how humans see color differences, which could improve recall accuracy.
+CREATE INDEX idx_users_digit_code ON users (digit_code);
+```
 
-**Status:** Deferred for dedicated deep-dive session.
+---
+
+## Configuration
+
+```env
+# Server
+PORT=8080
+
+# PostgreSQL
+DATABASE_URL=postgres://bubblebath:bubblebath@localhost:5432/bubblebath?sslmode=disable
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Encryption (64 hex chars = 32 bytes each, for AES-256)
+TOKEN_SECRET_KEY=<64-hex-char-key>
+COLUMN_ENCRYPTION_KEY=<64-hex-char-key>
+
+# Rate Limiting
+MAX_LOGIN_ATTEMPTS_PER_MINUTE=5
+
+# Token Lifetimes
+ACCESS_TOKEN_TTL_MINUTES=60
+REFRESH_TOKEN_TTL_DAYS=30
+```
+
+---
+
+## Getting Started
+
+```bash
+# Clone the repo
+git clone https://github.com/Lactoseandtolerance/bubble-bath.git
+cd bubble-bath
+
+# Start Postgres and Redis
+docker compose up -d
+
+# Copy and configure environment
+cp .env.example .env
+# Generate two 32-byte hex keys for TOKEN_SECRET_KEY and COLUMN_ENCRYPTION_KEY:
+# openssl rand -hex 32
+
+# Run migrations
+psql $DATABASE_URL -f migrations/001_create_users.up.sql
+
+# Run the server
+go run cmd/server/main.go
+
+# Test the health endpoint
+curl http://localhost:8080/health
+# {"status":"ok"}
+```
+
+---
+
+## Running Tests
+
+```bash
+# All tests (requires running Postgres and Redis)
+go test ./... -v
+
+# Individual packages
+go test ./internal/crypto/ -v        # Hashing, token encryption, column encryption
+go test ./internal/auth/ -v          # Signup and login logic
+go test ./internal/config/ -v        # Config loading
+go test ./internal/store/ -v         # Database operations
+go test ./internal/middleware/ -v    # Rate limiting
+```
+
+---
+
+## Roadmap
+
+### Phase 2: Tolerance-Based Login
+- HSV distance calculations with circular hue handling
+- Configurable tolerance thresholds
+- Nearest-neighbor matching for "close enough" color recall
+
+### Phase 3: Token Lifecycle
+- Refresh token endpoint
+- Logout / token revocation
+- Multi-device session management
+
+### Phase 4: Hardening
+- Recovery code system
+- Progressive per-identity lockout with escalating delays
+- Audit logging on sensitive operations
+
+### Phase 5: Frontend & Integration
+- Next.js frontend with full-spectrum color picker
+- Profile CRUD endpoints
+- Batch token verification for consuming services
+- Deployment to Google Cloud
+
+---
+
+## Open Questions
+
+### HSV Tolerance Calibration
+The optimal tolerance for fuzzy color matching is unknown and depends on human color memory precision. Too tight and users can't log in reliably. Too loose and the keyspace shrinks. Requires UX testing with real users across devices.
 
 ### Color-Blind Accessibility
-
-Users with color vision deficiency (affecting ~8% of males, ~0.5% of females) cannot use the standard color picker flow. Alternatives under consideration:
-
-- Number-only fallback with longer number sequences
-- Pattern or texture-based picker instead of color
-- Shape + color hybrid system
-- High-contrast mode with labeled color regions
-
-**Status:** Not yet designed. Required before any public release.
-
-### Bucket Size Calibration
-
-The optimal bucket width is unknown and depends on human color memory precision. Too small and users can't log in reliably. Too large and the keyspace shrinks below acceptable levels.
-
-Requires: UX playtesting with real users across different devices and screen calibrations.
-
-**Status:** Awaiting prototype for testing.
+Users with color vision deficiency (~8% of males, ~0.5% of females) cannot use the standard color flow. Alternatives under consideration: number-only fallback, pattern/texture picker, shape + color hybrid, high-contrast labeled regions. Required before any public release.
 
 ### Collision Handling
-
-What happens when two users independently choose the same number and a color that quantizes to the same bucket? Current design treats this as a 409 Conflict at registration. Alternatives:
-
-- Allow collisions and differentiate by additional factor (region selection)
-- Silently adjust to nearest available bucket and inform user of slight color shift
-- Require re-selection
-
-**Status:** Design decision pending.
-
-### Token Strategy
-
-JWT vs. opaque tokens, token refresh flow, multi-device session management, and token revocation strategy all need specification.
-
-**Status:** Deferred to implementation phase.
-
-### Region Selection Implementation
-
-The optional spatial zone factor is designed conceptually but not specified in detail. Needs: grid size determination, UX for zone selection, integration with the hashing pipeline, and analysis of how much effective entropy it adds.
-
-**Status:** Designed at concept level. Implementation deferred.
+When two users choose the same digit code + identical HSV, registration returns 409. Future options: differentiate by additional factor (region selection), adjust to nearest available slot, or require re-selection.
 
 ---
 
@@ -415,10 +406,11 @@ The optional spatial zone factor is designed conceptually but not specified in d
 
 This project is open-source. Contributions are welcome, particularly in:
 
-- Bucket quantization algorithms and perceptual color space research
+- HSV tolerance algorithms and perceptual color space research
 - Accessibility alternatives for color-blind users
 - Security analysis and penetration testing
 - UX research on color memory precision
+- Frontend color picker implementations
 
 ---
 
