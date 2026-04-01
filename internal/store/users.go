@@ -2,12 +2,16 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Lactoseandtolerance/bubble-bath/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrDuplicateDisplayName = errors.New("display name already taken")
 
 type HSVEncrypted struct {
 	Hue []byte
@@ -88,4 +92,18 @@ func (us *UserStore) FindByID(ctx context.Context, id uuid.UUID) (*UserRow, erro
 func (us *UserStore) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := us.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
+}
+
+func (us *UserStore) UpdateDisplayName(ctx context.Context, id uuid.UUID, displayName string) error {
+	_, err := us.pool.Exec(ctx, `
+		UPDATE users SET display_name = $1 WHERE id = $2
+	`, displayName, id)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrDuplicateDisplayName
+		}
+		return fmt.Errorf("updating display name: %w", err)
+	}
+	return nil
 }
