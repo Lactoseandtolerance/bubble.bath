@@ -14,8 +14,6 @@ Built as a standalone Go microservice. Originally developed as part of the hard.
 
 ## Current Status: Phase 2 Complete
 
-The core auth server is functional with tolerance-based and exact-match login. Users can sign up, log in via color picker or direct input, and external services can verify tokens. React frontend is live.
-
 ### What's Working
 
 - Signup with 2-digit number + HSV color
@@ -267,6 +265,25 @@ bubble-bath/
 ├── migrations/
 │   ├── 001_create_users.up.sql         # Users table with encrypted HSV columns
 │   └── 001_create_users.down.sql       # Drop users table
+├── web/
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── client.ts                 # Typed fetch wrappers for all API endpoints
+│   │   ├── components/
+│   │   │   ├── ColorPicker.tsx            # Composite HSV picker (HueBar + SatValSquare)
+│   │   │   ├── HueBar.tsx                # Canvas horizontal hue spectrum bar
+│   │   │   ├── SatValSquare.tsx           # Canvas 2D saturation/value grid
+│   │   │   ├── DigitInput.tsx            # Two-box digit code input with auto-advance
+│   │   │   └── DirectInput.tsx           # H/S/V numeric input fields
+│   │   ├── pages/
+│   │   │   ├── SignupPage.tsx            # Multi-step signup with color confirmation + tag
+│   │   │   └── LoginPage.tsx             # Picker/direct login with HSV confirmation
+│   │   ├── utils/
+│   │   │   └── color.ts                  # HSV↔RGB conversion, distance calculation
+│   │   ├── App.tsx                       # React Router setup
+│   │   └── theme.css                     # Dark theme CSS variables
+│   ├── package.json
+│   └── vite.config.ts                     # Dev proxy to Go backend on :8080
 ├── docker-compose.yml                   # PostgreSQL 16 + Redis 7 for local dev
 ├── .env.example                         # Template environment variables
 ├── go.mod
@@ -363,19 +380,6 @@ go test ./internal/config/ -v        # Config loading
 go test ./internal/store/ -v         # Database operations
 go test ./internal/middleware/ -v    # Rate limiting
 ```
-
----
-
-## Open Questions
-
-### HSV Tolerance Calibration
-The optimal tolerance for fuzzy color matching is unknown and depends on human color memory precision. Too tight and users can't log in reliably. Too loose and the keyspace shrinks. Requires UX testing with real users across devices.
-
-### Color-Blind Accessibility
-Users with color vision deficiency (~8% of males, ~0.5% of females) cannot use the standard color flow. Alternatives under consideration: number-only fallback, pattern/texture picker, shape + color hybrid, high-contrast labeled regions. Required before any public release.
-
-### Collision Handling
-When two users choose the same digit code + identical HSV, registration returns 409. Future options: differentiate by additional factor (region selection), adjust to nearest available slot, or require re-selection.
 
 ---
 
