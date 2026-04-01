@@ -65,3 +65,13 @@ export function verify(token: string): Promise<VerifyResponse> {
     headers: { Authorization: `Bearer ${token}` },
   })
 }
+
+export function updateProfile(
+  token: string, displayName: string,
+): Promise<{ display_name: string }> {
+  return request('/api/user/profile', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ display_name: displayName }),
+  })
+}

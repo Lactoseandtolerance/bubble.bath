@@ -159,8 +159,8 @@ func validateCredentials(digitCode, h, s, v int) error {
 	if digitCode < 0 || digitCode > 99 {
 		return fmt.Errorf("digit_code must be 0-99, got %d", digitCode)
 	}
-	if h < 0 || h > 360 {
-		return fmt.Errorf("hue must be 0-360, got %d", h)
+	if h < 0 || h > 359 {
+		return fmt.Errorf("hue must be 0-359, got %d", h)
 	}
 	if s < 0 || s > 100 {
 		return fmt.Errorf("saturation must be 0-100, got %d", s)

@@ -20,6 +20,13 @@ describe('hsvToRgb', () => {
   it('converts 50% gray', () => {
     expect(hsvToRgb(0, 0, 50)).toEqual([128, 128, 128])
   })
+  it('hsvToRgb treats 360 as 0 (red)', () => {
+    const [r1, g1, b1] = hsvToRgb(0, 100, 100)
+    const [r2, g2, b2] = hsvToRgb(360, 100, 100)
+    expect(r1).toBe(r2)
+    expect(g1).toBe(g2)
+    expect(b1).toBe(b2)
+  })
 })
 
 describe('rgbToHex', () => {

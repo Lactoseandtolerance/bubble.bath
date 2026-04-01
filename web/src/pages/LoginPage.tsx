@@ -16,12 +16,21 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   const handleSubmit = async () => {
     if (digitCode.length !== 2) {
       setError('Enter a 2-digit code')
       return
     }
+
+    // In picker mode, show confirmation step first
+    if (mode === 'picker' && !confirming) {
+      setConfirming(true)
+      setError('')
+      return
+    }
+
     setError('')
     setLoading(true)
     try {
@@ -44,7 +53,13 @@ export default function LoginPage() {
       }
     } finally {
       setLoading(false)
+      setConfirming(false)
     }
+  }
+
+  const handlePickAgain = () => {
+    setConfirming(false)
+    setError('')
   }
 
   if (success) {
@@ -69,24 +84,35 @@ export default function LoginPage() {
 
         <DigitInput value={digitCode} onChange={setDigitCode} />
 
-        <div className="mode-toggle">
-          <button
-            className={`mode-btn ${mode === 'picker' ? 'active' : ''}`}
-            onClick={() => setMode('picker')}
-          >
-            Color Picker
-          </button>
-          <button
-            className={`mode-btn ${mode === 'direct' ? 'active' : ''}`}
-            onClick={() => setMode('direct')}
-          >
-            Direct Input
-          </button>
-        </div>
-
         <div className="mode-content">
           {mode === 'picker' ? (
-            <ColorPicker hsv={hsv} onChange={setHsv} />
+            confirming ? (
+              <div className="confirm-panel">
+                <div className="confirm-heading">Confirm your color</div>
+                <div className="confirm-row">
+                  <div
+                    className="confirm-swatch"
+                    style={{ backgroundColor: hsvToHex(hsv.h, hsv.s, hsv.v) }}
+                  />
+                  <div className="confirm-values">
+                    <span className="confirm-hsv">H: {hsv.h}  S: {hsv.s}  V: {hsv.v}</span>
+                    <span className="confirm-tip">Tip: remember these for direct input</span>
+                  </div>
+                </div>
+                <button
+                  className="btn-primary"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? 'Authenticating...' : 'Sign In'}
+                </button>
+                <button className="confirm-pick-again" onClick={handlePickAgain}>
+                  ← Pick again
+                </button>
+              </div>
+            ) : (
+              <ColorPicker hsv={hsv} onChange={setHsv} />
+            )
           ) : (
             <DirectInput
               hue={hsv.h}
@@ -97,15 +123,29 @@ export default function LoginPage() {
           )}
         </div>
 
-        <button
-          className="btn-primary"
-          onClick={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? 'Authenticating...' : 'Log In'}
-        </button>
+        {!confirming && (
+          <button
+            className="btn-primary"
+            onClick={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? 'Authenticating...' : 'Log In'}
+          </button>
+        )}
 
         {error && <p className="auth-error">{error}</p>}
+
+        <div className="mode-link-container">
+          {mode === 'picker' && !confirming ? (
+            <button className="mode-link" onClick={() => setMode('direct')}>
+              Know your exact HSV? <strong>Use direct input →</strong>
+            </button>
+          ) : mode === 'direct' ? (
+            <button className="mode-link" onClick={() => setMode('picker')}>
+              Prefer the color picker? <strong>Switch to picker →</strong>
+            </button>
+          ) : null}
+        </div>
 
         <p className="auth-link">
           New here? <Link to="/signup">Create identity</Link>

@@ -19,11 +19,11 @@ export default function DirectInput({ hue, saturation, value, onChange }: Props)
         <input
           type="number"
           min={0}
-          max={360}
+          max={359}
           value={hue}
-          onChange={(e) => onChange(clamp(+e.target.value, 0, 360), saturation, value)}
+          onChange={(e) => onChange(clamp(+e.target.value, 0, 359), saturation, value)}
         />
-        <span className="direct-range">0–360</span>
+        <span className="direct-range">0–359</span>
       </label>
       <label className="direct-field">
         <span className="direct-label">S</span>

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestFindByID(t *testing.T) {
 	user := &models.User{
 		ID:          id,
 		DigitCode:   99,
-		Hue:         360,
+		Hue:         359,
 		Saturation:  100,
 		Value:       100,
 		ColorHash:   []byte("fakehash2"),
@@ -107,5 +108,66 @@ func TestFindByID(t *testing.T) {
 	}
 	if found.DisplayName != "test_user_2" {
 		t.Errorf("DisplayName = %q, want %q", found.DisplayName, "test_user_2")
+	}
+}
+
+func TestUpdateDisplayName(t *testing.T) {
+	pool := testPool(t)
+	us := NewUserStore(pool)
+	ctx := context.Background()
+
+	// Insert two test users using the store's Insert method
+	user1 := &models.User{
+		ID:          uuid.New(),
+		DigitCode:   10,
+		Hue:         100,
+		Saturation:  50,
+		Value:       50,
+		ColorHash:   []byte("fakehash_tag1"),
+		DisplayName: "test_tag_setup1",
+	}
+	user2 := &models.User{
+		ID:          uuid.New(),
+		DigitCode:   11,
+		Hue:         200,
+		Saturation:  60,
+		Value:       60,
+		ColorHash:   []byte("fakehash_tag2"),
+		DisplayName: "test_tag_setup2",
+	}
+	us.Insert(ctx, user1, HSVEncrypted{Hue: []byte("h1"), Sat: []byte("s1"), Val: []byte("v1")})
+	us.Insert(ctx, user2, HSVEncrypted{Hue: []byte("h2"), Sat: []byte("s2"), Val: []byte("v2")})
+
+	// Test: update display name
+	err := us.UpdateDisplayName(ctx, user1.ID, "test_tag_alpha")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	// Verify it was updated
+	row, err := us.FindByID(ctx, user1.ID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if row.DisplayName != "test_tag_alpha" {
+		t.Errorf("expected 'test_tag_alpha', got %q", row.DisplayName)
+	}
+
+	// Test: duplicate display name returns ErrDuplicateDisplayName
+	err = us.UpdateDisplayName(ctx, user2.ID, "test_tag_alpha")
+	if !errors.Is(err, ErrDuplicateDisplayName) {
+		t.Errorf("expected ErrDuplicateDisplayName, got %v", err)
+	}
+
+	// Test: clearing display name (empty string) works
+	err = us.UpdateDisplayName(ctx, user1.ID, "")
+	if err != nil {
+		t.Fatalf("expected no error clearing name, got %v", err)
+	}
+
+	// Test: two users can both have empty display names
+	err = us.UpdateDisplayName(ctx, user2.ID, "")
+	if err != nil {
+		t.Fatalf("expected no error for second empty name, got %v", err)
 	}
 }

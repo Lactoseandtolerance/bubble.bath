@@ -27,6 +27,9 @@ func NewRouter(authH *AuthHandler, verifyH *VerifyHandler, rdb *redis.Client, ma
 			r.Post("/login/direct", authH.LoginDirect)
 		})
 		r.Get("/verify", verifyH.Verify)
+		r.Route("/user", func(r chi.Router) {
+			r.Patch("/profile", verifyH.UpdateProfile)
+		})
 	})
 
 	return r

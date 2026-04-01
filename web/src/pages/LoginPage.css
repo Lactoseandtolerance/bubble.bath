@@ -1,31 +1,64 @@
-.mode-toggle {
-  display: flex;
-  gap: 0;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
+.confirm-panel {
   width: 100%;
-}
-
-.mode-btn {
-  flex: 1;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
   background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.confirm-heading {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirm-swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.confirm-values {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.confirm-hsv {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 16px;
+  font-family: monospace;
+}
+
+.confirm-tip {
   color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.confirm-pick-again {
+  background: none;
   border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  padding: 4px;
 }
 
-.mode-btn.active {
-  background: var(--accent-purple);
-  color: #fff;
-}
-
-.mode-btn:not(.active):hover {
-  background: var(--border-subtle);
+.confirm-pick-again:hover {
+  color: var(--text-primary);
 }
 
 .mode-content {
@@ -35,4 +68,24 @@
   min-height: 300px;
   align-items: flex-start;
   padding-top: 4px;
+}
+
+.mode-link-container {
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  text-align: center;
+}
+
+.mode-link {
+  background: none;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mode-link:hover {
+  text-decoration: underline;
 }
