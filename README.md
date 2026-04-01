@@ -12,29 +12,31 @@ Built as a standalone Go microservice. Originally developed as part of the hard.
 
 ---
 
-## Current Status: Phase 1 MVP (Complete)
+## Current Status: Phase 2 Complete
 
-The core auth server is functional with exact-match login. Users can sign up, log in, and external services can verify tokens.
+The core auth server is functional with tolerance-based and exact-match login. Users can sign up, log in via color picker or direct input, and external services can verify tokens. React frontend is live.
 
 ### What's Working
 
 - Signup with 2-digit number + HSV color
 - Exact-match login (digit code + H/S/V verified via Argon2 hash)
+- Tolerance-based login (nearest-neighbor HSV matching with configurable tolerance)
+- React + TypeScript frontend with Canvas-based HSV color picker
 - AES-256-GCM encrypted tokens with `bb_` prefix
-- Column-level encryption for HSV values at rest (no plaintext colors in the database)
+- Column-level encryption for HSV values at rest
 - Token verification endpoint for consuming services
 - Redis-based rate limiting on auth routes
 - PostgreSQL storage with encrypted columns
+- Display tag creation (optional post-signup identity tag)
+- HSV confirmation step on login (picker mode)
 
 ### What's Not Yet Implemented
 
-- HSV tolerance-based login (fuzzy color matching — "close enough" recall)
 - Token refresh endpoint
 - Logout / token revocation
-- Recovery codes
-- Profile update endpoints
+- Recovery codes (iOS app planned)
 - Progressive lockout (per-identity escalating delays)
-- Next.js frontend
+- Soap ID algorithm (deterministic encoded credentials)
 
 ---
 
@@ -221,7 +223,7 @@ Health check.
 | Config | godotenv |
 | UUIDs | google/uuid |
 | Local Dev | Docker Compose (Postgres + Redis) |
-| Frontend (planned) | Next.js |
+| Frontend | React 18 + Vite + TypeScript |
 
 ---
 
@@ -361,31 +363,6 @@ go test ./internal/config/ -v        # Config loading
 go test ./internal/store/ -v         # Database operations
 go test ./internal/middleware/ -v    # Rate limiting
 ```
-
----
-
-## Roadmap
-
-### Phase 2: Tolerance-Based Login
-- HSV distance calculations with circular hue handling
-- Configurable tolerance thresholds
-- Nearest-neighbor matching for "close enough" color recall
-
-### Phase 3: Token Lifecycle
-- Refresh token endpoint
-- Logout / token revocation
-- Multi-device session management
-
-### Phase 4: Hardening
-- Recovery code system
-- Progressive per-identity lockout with escalating delays
-- Audit logging on sensitive operations
-
-### Phase 5: Frontend & Integration
-- Next.js frontend with full-spectrum color picker
-- Profile CRUD endpoints
-- Batch token verification for consuming services
-- Deployment to Google Cloud
 
 ---
 
