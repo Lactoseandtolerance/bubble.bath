@@ -12,29 +12,29 @@ Built as a standalone Go microservice. Originally developed as part of the hard.
 
 ---
 
-## Current Status: Phase 1 MVP (Complete)
-
-The core auth server is functional with exact-match login. Users can sign up, log in, and external services can verify tokens.
+## Current Status: Phase 2 Complete
 
 ### What's Working
 
 - Signup with 2-digit number + HSV color
 - Exact-match login (digit code + H/S/V verified via Argon2 hash)
+- Tolerance-based login (nearest-neighbor HSV matching with configurable tolerance)
+- React + TypeScript frontend with Canvas-based HSV color picker
 - AES-256-GCM encrypted tokens with `bb_` prefix
-- Column-level encryption for HSV values at rest (no plaintext colors in the database)
+- Column-level encryption for HSV values at rest
 - Token verification endpoint for consuming services
 - Redis-based rate limiting on auth routes
 - PostgreSQL storage with encrypted columns
+- Display tag creation (optional post-signup identity tag)
+- HSV confirmation step on login (picker mode)
 
 ### What's Not Yet Implemented
 
-- HSV tolerance-based login (fuzzy color matching — "close enough" recall)
 - Token refresh endpoint
 - Logout / token revocation
-- Recovery codes
-- Profile update endpoints
+- Recovery codes (iOS app planned)
 - Progressive lockout (per-identity escalating delays)
-- Next.js frontend
+- Soap ID algorithm (deterministic encoded credentials)
 
 ---
 
@@ -221,7 +221,7 @@ Health check.
 | Config | godotenv |
 | UUIDs | google/uuid |
 | Local Dev | Docker Compose (Postgres + Redis) |
-| Frontend (planned) | Next.js |
+| Frontend | React 18 + Vite + TypeScript |
 
 ---
 
@@ -265,6 +265,25 @@ bubble-bath/
 ├── migrations/
 │   ├── 001_create_users.up.sql         # Users table with encrypted HSV columns
 │   └── 001_create_users.down.sql       # Drop users table
+├── web/
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── client.ts                 # Typed fetch wrappers for all API endpoints
+│   │   ├── components/
+│   │   │   ├── ColorPicker.tsx            # Composite HSV picker (HueBar + SatValSquare)
+│   │   │   ├── HueBar.tsx                # Canvas horizontal hue spectrum bar
+│   │   │   ├── SatValSquare.tsx           # Canvas 2D saturation/value grid
+│   │   │   ├── DigitInput.tsx            # Two-box digit code input with auto-advance
+│   │   │   └── DirectInput.tsx           # H/S/V numeric input fields
+│   │   ├── pages/
+│   │   │   ├── SignupPage.tsx            # Multi-step signup with color confirmation + tag
+│   │   │   └── LoginPage.tsx             # Picker/direct login with HSV confirmation
+│   │   ├── utils/
+│   │   │   └── color.ts                  # HSV↔RGB conversion, distance calculation
+│   │   ├── App.tsx                       # React Router setup
+│   │   └── theme.css                     # Dark theme CSS variables
+│   ├── package.json
+│   └── vite.config.ts                     # Dev proxy to Go backend on :8080
 ├── docker-compose.yml                   # PostgreSQL 16 + Redis 7 for local dev
 ├── .env.example                         # Template environment variables
 ├── go.mod
@@ -361,44 +380,6 @@ go test ./internal/config/ -v        # Config loading
 go test ./internal/store/ -v         # Database operations
 go test ./internal/middleware/ -v    # Rate limiting
 ```
-
----
-
-## Roadmap
-
-### Phase 2: Tolerance-Based Login
-- HSV distance calculations with circular hue handling
-- Configurable tolerance thresholds
-- Nearest-neighbor matching for "close enough" color recall
-
-### Phase 3: Token Lifecycle
-- Refresh token endpoint
-- Logout / token revocation
-- Multi-device session management
-
-### Phase 4: Hardening
-- Recovery code system
-- Progressive per-identity lockout with escalating delays
-- Audit logging on sensitive operations
-
-### Phase 5: Frontend & Integration
-- Next.js frontend with full-spectrum color picker
-- Profile CRUD endpoints
-- Batch token verification for consuming services
-- Deployment to Google Cloud
-
----
-
-## Open Questions
-
-### HSV Tolerance Calibration
-The optimal tolerance for fuzzy color matching is unknown and depends on human color memory precision. Too tight and users can't log in reliably. Too loose and the keyspace shrinks. Requires UX testing with real users across devices.
-
-### Color-Blind Accessibility
-Users with color vision deficiency (~8% of males, ~0.5% of females) cannot use the standard color flow. Alternatives under consideration: number-only fallback, pattern/texture picker, shape + color hybrid, high-contrast labeled regions. Required before any public release.
-
-### Collision Handling
-When two users choose the same digit code + identical HSV, registration returns 409. Future options: differentiate by additional factor (region selection), adjust to nearest available slot, or require re-selection.
 
 ---
 
